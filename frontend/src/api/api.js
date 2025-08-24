@@ -1,0 +1,111 @@
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+// Request interceptor to add auth token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth API
+export const authAPI = {
+  login: (credentials) => api.post('/auth/login', credentials),
+  register: (userData) => api.post('/auth/register', userData),
+  getMe: () => api.get('/auth/me'),
+};
+
+// Workers API
+export const workersAPI = {
+  getAll: () => api.get('/workers'),
+  getById: (id) => api.get(`/workers/${id}`),
+  create: (data) => api.post('/workers', data),
+  update: (id, data) => api.put(`/workers/${id}`, data),
+  delete: (id) => api.delete(`/workers/${id}`),
+};
+
+// Projects API
+export const projectsAPI = {
+  getAll: () => api.get('/projects'),
+  getById: (id) => api.get(`/projects/${id}`),
+  create: (data) => api.post('/projects', data),
+  update: (id, data) => api.put(`/projects/${id}`, data),
+  delete: (id) => api.delete(`/projects/${id}`),
+  getFinanceSummary: (id) => api.get(`/projects/${id}/finance-summary`),
+  processPayment: (id, data) => api.post(`/projects/${id}/process-payment`, data),
+  assignWorkers: (id, workerIds) => api.post(`/projects/${id}/assign-workers`, { workerIds }),
+};
+
+// Project Owners API
+export const projectOwnersAPI = {
+  getAll: () => api.get('/project-owners'),
+  getById: (id) => api.get(`/project-owners/${id}`),
+  create: (data) => api.post('/project-owners', data),
+  update: (id, data) => api.put(`/project-owners/${id}`, data),
+  delete: (id) => api.delete(`/project-owners/${id}`),
+  getProjectsSummary: (id, sort) => api.get(`/project-owners/${id}/projects-summary?sort=${sort}`),
+};
+
+// Materials API
+export const materialsAPI = {
+  getAll: (projectId) => api.get(`/materials${projectId ? `?projectId=${projectId}` : ''}`),
+  getById: (id) => api.get(`/materials/${id}`),
+  create: (data) => api.post('/materials', data),
+  update: (id, data) => api.put(`/materials/${id}`, data),
+  delete: (id) => api.delete(`/materials/${id}`),
+};
+
+// Salaries API
+export const salariesAPI = {
+  getAll: (params) => api.get('/salaries', { params }),
+  getById: (id) => api.get(`/salaries/${id}`),
+  create: (data) => api.post('/salaries', data),
+  update: (id, data) => api.put(`/salaries/${id}`, data),
+  delete: (id) => api.delete(`/salaries/${id}`),
+};
+
+// Attendance API
+export const attendanceAPI = {
+  getAll: (params) => api.get('/attendance', { params }),
+  create: (data) => api.post('/attendance', data),
+  update: (id, data) => api.put(`/attendance/${id}`, data),
+  delete: (id) => api.delete(`/attendance/${id}`),
+  getReport: (params) => api.get('/attendance/report', { params }),
+};
+
+// Payments API
+export const paymentsAPI = {
+  getAll: (projectId) => api.get(`/payments${projectId ? `?projectId=${projectId}` : ''}`),
+  create: (data) => api.post('/payments', data),
+  update: (id, data) => api.put(`/payments/${id}`, data),
+  delete: (id) => api.delete(`/payments/${id}`),
+};
+
+// Reports API
+export const reportsAPI = {
+  getDashboard: () => api.get('/reports/dashboard'),
+  getFinancial: (params) => api.get('/reports/financial', { params }),
+  getWorkerPerformance: (params) => api.get('/reports/worker-performance', { params }),
+};
+
+export default api;
