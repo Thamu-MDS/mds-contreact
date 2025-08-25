@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { projectOwnersAPI, paymentsAPI } from '../api/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
-import PaymentModal from '../components/PaymentModal';
+import PaymentModal from './PaymentModal';
 import { useAuth } from '../contexts/AuthContext';
 
 const ProjectOwners = () => {
@@ -43,10 +43,25 @@ const ProjectOwners = () => {
 
   const fetchPayments = async (ownerId) => {
     try {
-      const response = await paymentsAPI.getAll();
-      // Filter payments by ownerId (assuming payment has projectOwnerId field)
-      const ownerPayments = response.data.filter(payment => payment.projectOwnerId === ownerId);
-      setPayments(ownerPayments);
+      // Get projects for this owner first
+      const projectsResponse = await projectOwnersAPI.getProjectsSummary(ownerId);
+      const projects = projectsResponse.data;
+      
+      // Get payments for each project
+      const allPayments = [];
+      for (const project of projects) {
+        try {
+          const paymentsResponse = await paymentsAPI.getAll(project._id);
+          allPayments.push(...paymentsResponse.data.map(payment => ({
+            ...payment,
+            projectName: project.name
+          })));
+        } catch (error) {
+          console.error(`Error fetching payments for project ${project._id}:`, error);
+        }
+      }
+      
+      setPayments(allPayments);
     } catch (error) {
       console.error('Error fetching payments:', error);
     }
@@ -70,17 +85,26 @@ const ProjectOwners = () => {
 
   const handlePaymentSubmit = async (paymentData) => {
     try {
-      const paymentWithOwner = {
+      // For simplicity, we'll use the first project of the owner
+      // In a real app, you might want to let the user select a project
+      const projectsResponse = await projectOwnersAPI.getProjectsSummary(selectedOwner._id);
+      const projects = projectsResponse.data;
+      
+      if (projects.length === 0) {
+        alert('This owner has no projects. Please create a project first.');
+        return;
+      }
+      
+      const paymentWithProject = {
         ...paymentData,
-        projectOwnerId: selectedOwner._id,
-        projectOwnerName: selectedOwner.name,
-        amount: parseFloat(paymentData.amount)
+        projectId: projects[0]._id,
+        projectOwnerId: selectedOwner._id
       };
       
       if (editingPayment) {
-        await paymentsAPI.update(editingPayment._id, paymentWithOwner);
+        await paymentsAPI.update(editingPayment._id, paymentWithProject);
       } else {
-        await paymentsAPI.create(paymentWithOwner);
+        await paymentsAPI.create(paymentWithProject);
       }
       
       fetchPayments(selectedOwner._id);
@@ -113,51 +137,55 @@ const ProjectOwners = () => {
     setShowPaymentsModal(true);
   };
 
-  const handleGenerateReport = () => {
-    // Calculate totals
-    const totalProjectValue = parseFloat(selectedOwner?.totalProjectValue || 0);
-    const paidAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
-    const balanceAmount = totalProjectValue - paidAmount;
-
-    // Create report content
-    const reportContent = `
-      PROJECT OWNER PAYMENT REPORT
-      ============================
+  const handleGenerateReport = async () => {
+    try {
+      // Calculate totals for the report
+      const totalProjectValue = selectedOwner.totalProjectValue || 0;
+      const paidAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+      const balanceAmount = totalProjectValue - paidAmount;
       
-      Owner: ${selectedOwner?.name}
-      Company: ${selectedOwner?.company || 'N/A'}
-      Email: ${selectedOwner?.email}
-      Phone: ${selectedOwner?.phone}
-      Address: ${selectedOwner?.address}
+      // Create a simple text report (in a real app, you might generate PDF)
+      const reportContent = `
+        PROJECT OWNER PAYMENT REPORT
+        ============================
+        
+        Owner: ${selectedOwner.name}
+        Company: ${selectedOwner.company || 'N/A'}
+        Email: ${selectedOwner.email}
+        Phone: ${selectedOwner.phone}
+        
+        FINANCIAL SUMMARY
+        ----------------
+        Total Project Value: $${totalProjectValue.toLocaleString()}
+        Total Paid Amount: $${paidAmount.toLocaleString()}
+        Balance Amount: $${balanceAmount.toLocaleString()}
+        
+        PAYMENT DETAILS
+        ---------------
+        ${payments.map(payment => `
+          Date: ${new Date(payment.date).toLocaleDateString()}
+          Amount: $${parseFloat(payment.amount).toLocaleString()}
+          Project: ${payment.projectName || 'N/A'}
+          Description: ${payment.description || 'N/A'}
+          Method: ${payment.paymentMethod || 'N/A'}
+          ---
+        `).join('')}
+        
+        Generated on: ${new Date().toLocaleDateString()}
+      `;
       
-      FINANCIAL SUMMARY
-      ----------------
-      Total Project Value: $${totalProjectValue.toLocaleString()}
-      Total Paid Amount: $${paidAmount.toLocaleString()}
-      Balance Amount: $${balanceAmount.toLocaleString()}
-      
-      PAYMENT DETAILS
-      ---------------
-      ${payments.map((payment, index) => `
-        ${index + 1}. Date: ${new Date(payment.date).toLocaleDateString()}
-           Amount: $${parseFloat(payment.amount).toLocaleString()}
-           Description: ${payment.description || 'N/A'}
-           Method: ${payment.paymentMethod || 'N/A'}
-        ---
-      `).join('')}
-      
-      Generated on: ${new Date().toLocaleDateString()}
-    `;
-
-    // Create and download text file
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `payment_report_${selectedOwner?._id}.txt`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+      // Create and download the report
+      const blob = new Blob([reportContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `payment_report_${selectedOwner._id}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error generating report:', error);
+    }
   };
 
   const handleEdit = (owner) => {
@@ -197,7 +225,7 @@ const ProjectOwners = () => {
   };
 
   // Calculate totals for payments
-  const totalProjectValue = parseFloat(selectedOwner?.totalProjectValue || 0);
+  const totalProjectValue = selectedOwner?.totalProjectValue || 0;
   const paidAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
   const balanceAmount = totalProjectValue - paidAmount;
 
@@ -210,59 +238,17 @@ const ProjectOwners = () => {
       key: 'totalProjectValue', 
       title: 'Total Value',
       render: (value) => value ? `$${parseFloat(value).toLocaleString()}` : '$0'
-    },
-    { key: 'address', title: 'Address' },
-    {
-      key: 'actions',
-      title: 'Actions',
-      render: (_, owner) => (
-        <div className="flex space-x-2">
-          {/* View Button - For all users */}
-          <button
-            onClick={() => handleViewPayments(owner)}
-            className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-            title="View Payments"
-          >
-            View
-          </button>
-
-          {/* Edit Button - Admin only */}
-          {isAdmin && (
-            <button
-              onClick={() => handleEdit(owner)}
-              className="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-              title="Edit Owner"
-            >
-              Edit
-            </button>
-          )}
-
-          {/* Delete Button - Admin only */}
-          {isAdmin && (
-            <button
-              onClick={() => handleDelete(owner)}
-              className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-              title="Delete Owner"
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      )
     }
   ];
 
   const paymentColumns = [
-    { 
-      key: 'date', 
-      title: 'Date',
-      render: (value) => new Date(value).toLocaleDateString()
-    },
+    { key: 'date', title: 'Date', render: (value) => new Date(value).toLocaleDateString() },
     { 
       key: 'amount', 
       title: 'Amount',
       render: (value) => `$${parseFloat(value).toLocaleString()}`
     },
+    { key: 'projectName', title: 'Project' },
     { key: 'description', title: 'Description' },
     { key: 'paymentMethod', title: 'Payment Method' }
   ];
@@ -276,23 +262,26 @@ const ProjectOwners = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Project Owners</h1>
         {isAdmin && (
           <button
             onClick={() => setShowModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="btn-primary"
           >
             Add Project Owner
           </button>
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="card">
         <Table
           columns={ownerColumns}
           data={owners}
+          onEdit={isAdmin ? handleEdit : null}
+          onDelete={isAdmin ? handleDelete : null}
+          onView={handleViewPayments}
           showActions={true}
         />
       </div>
@@ -312,7 +301,7 @@ const ProjectOwners = () => {
             <input
               type="text"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-field"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -323,7 +312,7 @@ const ProjectOwners = () => {
             <input
               type="email"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-field"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
@@ -334,7 +323,7 @@ const ProjectOwners = () => {
             <input
               type="tel"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-field"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
@@ -344,7 +333,7 @@ const ProjectOwners = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
             <input
               type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-field"
               value={formData.company}
               onChange={(e) => setFormData({ ...formData, company: e.target.value })}
             />
@@ -355,7 +344,7 @@ const ProjectOwners = () => {
             <input
               type="number"
               step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-field"
               value={formData.totalProjectValue}
               onChange={(e) => setFormData({ ...formData, totalProjectValue: e.target.value })}
             />
@@ -365,7 +354,7 @@ const ProjectOwners = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
             <textarea
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-field"
               rows={3}
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -373,7 +362,7 @@ const ProjectOwners = () => {
           </div>
           
           <div className="flex space-x-3 pt-4">
-            <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            <button type="submit" className="btn-primary flex-1">
               {editingOwner ? 'Update Owner' : 'Add Owner'}
             </button>
             <button
@@ -382,7 +371,7 @@ const ProjectOwners = () => {
                 setShowModal(false);
                 resetForm();
               }}
-              className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+              className="btn-secondary flex-1"
             >
               Cancel
             </button>
@@ -406,7 +395,7 @@ const ProjectOwners = () => {
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="text-sm font-medium text-blue-800">Total Project Value</h3>
               <p className="text-2xl font-bold text-blue-900">
-                ${totalProjectValue.toLocaleString()}
+                ${parseFloat(totalProjectValue || 0).toLocaleString()}
               </p>
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
@@ -430,14 +419,14 @@ const ProjectOwners = () => {
             <div className="flex space-x-2">
               <button
                 onClick={handleGenerateReport}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                className="btn-secondary"
               >
                 Download Report
               </button>
               {isAdmin && (
                 <button
                   onClick={() => setShowPaymentModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  className="btn-primary"
                 >
                   Add Payment
                 </button>
@@ -445,15 +434,13 @@ const ProjectOwners = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <Table
-              columns={paymentColumns}
-              data={payments}
-              onEdit={isAdmin ? handleEditPayment : null}
-              onDelete={isAdmin ? handleDeletePayment : null}
-              showActions={isAdmin}
-            />
-          </div>
+          <Table
+            columns={paymentColumns}
+            data={payments}
+            onEdit={isAdmin ? handleEditPayment : null}
+            onDelete={isAdmin ? handleDeletePayment : null}
+            showActions={isAdmin}
+          />
         </div>
       </Modal>
 
