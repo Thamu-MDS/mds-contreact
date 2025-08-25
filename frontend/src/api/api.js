@@ -131,6 +131,7 @@ export const attendanceAPI = {
 // Payments API
 export const paymentsAPI = {
   getAll: (projectId) => api.get(`/payments${projectId ? `?projectId=${projectId}` : ''}`),
+  getByOwner: (ownerId) => api.get(`/payments?projectOwner=${ownerId}`),
   getByOwnerId: (ownerId) => api.get(`/payments/owner/${ownerId}`),
   create: (data) => {
     // Format number fields before sending

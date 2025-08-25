@@ -1,33 +1,30 @@
 import mongoose from 'mongoose';
 
 const paymentSchema = new mongoose.Schema({
-  projectId: {
+  projectOwner: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
+    ref: 'ProjectOwner',
+    required: true
+  },
+  projectOwnerName: {
+    type: String,
     required: true
   },
   amount: {
     type: Number,
     required: true
   },
-  paymentDate: {
+  date: {
     type: Date,
     default: Date.now
   },
-  paymentMode: {
+  description: {
+    type: String
+  },
+  paymentMethod: {
     type: String,
-    enum: ['cash', 'bank', 'cheque', 'upi'],
+    enum: ['cash', 'bank transfer', 'cheque', 'credit card', 'debit card', 'upi', 'other'],
     required: true
-  },
-  reference: {
-    type: String
-  },
-  notes: {
-    type: String
-  },
-  isAdvance: {
-    type: Boolean,
-    default: false
   }
 }, {
   timestamps: true
