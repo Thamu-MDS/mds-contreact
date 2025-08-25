@@ -19,6 +19,8 @@ import Salaries from './pages/Salaries';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
 
+import ProjectOwnerPayments from './pages/ProjectOwnerPayments';
+
 function App() {
   return (
     <AuthProvider>
@@ -41,6 +43,9 @@ function App() {
             <Route path="salaries" element={<Salaries />} />
             <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="/project-owners" element={<ProjectOwners />} />
+          
+            <Route path="/project-owners/:ownerId/payments" element={<ProjectOwnerPayments />} />
           </Route>
         </Routes>
       </Router>

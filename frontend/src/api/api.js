@@ -28,6 +28,17 @@ api.interceptors.response.use(
   }
 );
 
+// Helper function to format numbers for API requests
+const formatNumberFields = (data, fields) => {
+  const formattedData = { ...data };
+  fields.forEach(field => {
+    if (formattedData[field] !== undefined && formattedData[field] !== null && formattedData[field] !== '') {
+      formattedData[field] = parseFloat(formattedData[field]);
+    }
+  });
+  return formattedData;
+};
+
 // Auth API
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
@@ -60,8 +71,16 @@ export const projectsAPI = {
 export const projectOwnersAPI = {
   getAll: () => api.get('/project-owners'),
   getById: (id) => api.get(`/project-owners/${id}`),
-  create: (data) => api.post('/project-owners', data),
-  update: (id, data) => api.put(`/project-owners/${id}`, data),
+  create: (data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['totalProjectValue']);
+    return api.post('/project-owners', formattedData);
+  },
+  update: (id, data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['totalProjectValue']);
+    return api.put(`/project-owners/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/project-owners/${id}`),
   getProjectsSummary: (id, sort) => api.get(`/project-owners/${id}/projects-summary?sort=${sort}`),
 };
@@ -70,8 +89,16 @@ export const projectOwnersAPI = {
 export const materialsAPI = {
   getAll: (projectId) => api.get(`/materials${projectId ? `?projectId=${projectId}` : ''}`),
   getById: (id) => api.get(`/materials/${id}`),
-  create: (data) => api.post('/materials', data),
-  update: (id, data) => api.put(`/materials/${id}`, data),
+  create: (data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['quantity', 'unitPrice', 'totalCost']);
+    return api.post('/materials', formattedData);
+  },
+  update: (id, data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['quantity', 'unitPrice', 'totalCost']);
+    return api.put(`/materials/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/materials/${id}`),
 };
 
@@ -79,8 +106,16 @@ export const materialsAPI = {
 export const salariesAPI = {
   getAll: (params) => api.get('/salaries', { params }),
   getById: (id) => api.get(`/salaries/${id}`),
-  create: (data) => api.post('/salaries', data),
-  update: (id, data) => api.put(`/salaries/${id}`, data),
+  create: (data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['amount', 'hoursWorked', 'overtimeHours']);
+    return api.post('/salaries', formattedData);
+  },
+  update: (id, data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['amount', 'hoursWorked', 'overtimeHours']);
+    return api.put(`/salaries/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/salaries/${id}`),
 };
 
@@ -96,8 +131,17 @@ export const attendanceAPI = {
 // Payments API
 export const paymentsAPI = {
   getAll: (projectId) => api.get(`/payments${projectId ? `?projectId=${projectId}` : ''}`),
-  create: (data) => api.post('/payments', data),
-  update: (id, data) => api.put(`/payments/${id}`, data),
+  getByOwnerId: (ownerId) => api.get(`/payments/owner/${ownerId}`),
+  create: (data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['amount']);
+    return api.post('/payments', formattedData);
+  },
+  update: (id, data) => {
+    // Format number fields before sending
+    const formattedData = formatNumberFields(data, ['amount']);
+    return api.put(`/payments/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/payments/${id}`),
 };
 

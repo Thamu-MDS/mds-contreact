@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { projectOwnersAPI, paymentsAPI } from '../api/api';
-import Table from '../components/Table';
-import Modal from '../components/Modal';
+import Table from './Table';
+import Modal from './Modal';
 import PaymentModal from './PaymentModal';
 import { useAuth } from '../contexts/AuthContext';
 

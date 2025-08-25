@@ -4,17 +4,13 @@ import Table from '../components/Table';
 import Modal from '../components/Modal';
 import PaymentModal from '../components/PaymentModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const ProjectOwners = () => {
   const [owners, setOwners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [editingOwner, setEditingOwner] = useState(null);
-  const [editingPayment, setEditingPayment] = useState(null);
-  const [selectedOwner, setSelectedOwner] = useState(null);
-  const [payments, setPayments] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,8 +19,10 @@ const ProjectOwners = () => {
     company: '',
     totalProjectValue: ''
   });
+  const [error, setError] = useState(''); // Add error state
 
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchOwners();
@@ -41,123 +39,35 @@ const ProjectOwners = () => {
     }
   };
 
-  const fetchPayments = async (ownerId) => {
-    try {
-      const response = await paymentsAPI.getAll();
-      // Filter payments by ownerId (assuming payment has projectOwnerId field)
-      const ownerPayments = response.data.filter(payment => payment.projectOwnerId === ownerId);
-      setPayments(ownerPayments);
-    } catch (error) {
-      console.error('Error fetching payments:', error);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(''); // Reset error before submission
+    
     try {
+      // Convert totalProjectValue to a number before sending
+      const dataToSend = {
+        ...formData,
+        totalProjectValue: formData.totalProjectValue ? parseFloat(formData.totalProjectValue) : 0
+      };
+      
       if (editingOwner) {
-        await projectOwnersAPI.update(editingOwner._id, formData);
+        await projectOwnersAPI.update(editingOwner._id, dataToSend);
       } else {
-        await projectOwnersAPI.create(formData);
+        await projectOwnersAPI.create(dataToSend);
       }
       fetchOwners();
       setShowModal(false);
       resetForm();
     } catch (error) {
       console.error('Error saving project owner:', error);
-    }
-  };
-
-  const handlePaymentSubmit = async (paymentData) => {
-    try {
-      const paymentWithOwner = {
-        ...paymentData,
-        projectOwnerId: selectedOwner._id,
-        projectOwnerName: selectedOwner.name,
-        amount: parseFloat(paymentData.amount)
-      };
-      
-      if (editingPayment) {
-        await paymentsAPI.update(editingPayment._id, paymentWithOwner);
+      // Check if it's a duplicate phone error
+      if (error.response?.data?.error?.includes('phone') || 
+          error.response?.data?.error?.includes('duplicate')) {
+        setError('A project owner with this phone number already exists.');
       } else {
-        await paymentsAPI.create(paymentWithOwner);
-      }
-      
-      fetchPayments(selectedOwner._id);
-      setShowPaymentModal(false);
-      setEditingPayment(null);
-    } catch (error) {
-      console.error('Error saving payment:', error);
-    }
-  };
-
-  const handleDeletePayment = async (payment) => {
-    if (window.confirm('Are you sure you want to delete this payment?')) {
-      try {
-        await paymentsAPI.delete(payment._id);
-        fetchPayments(selectedOwner._id);
-      } catch (error) {
-        console.error('Error deleting payment:', error);
+        setError('Error saving project owner. Please try again.');
       }
     }
-  };
-
-  const handleEditPayment = (payment) => {
-    setEditingPayment(payment);
-    setShowPaymentModal(true);
-  };
-
-  const handleViewPayments = async (owner) => {
-    setSelectedOwner(owner);
-    await fetchPayments(owner._id);
-    setShowPaymentsModal(true);
-  };
-
-  const handleGenerateReport = () => {
-    // Calculate totals
-    const totalProjectValue = parseFloat(selectedOwner?.totalProjectValue || 0);
-    const paidAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
-    const balanceAmount = totalProjectValue - paidAmount;
-
-    // Create report content
-    const reportContent = `
-      PROJECT OWNER PAYMENT REPORT
-      ============================
-      
-      Owner: ${selectedOwner?.name}
-      Company: ${selectedOwner?.company || 'N/A'}
-      Email: ${selectedOwner?.email}
-      Phone: ${selectedOwner?.phone}
-      Address: ${selectedOwner?.address}
-      
-      FINANCIAL SUMMARY
-      ----------------
-      Total Project Value: $${totalProjectValue.toLocaleString()}
-      Total Paid Amount: $${paidAmount.toLocaleString()}
-      Balance Amount: $${balanceAmount.toLocaleString()}
-      
-      PAYMENT DETAILS
-      ---------------
-      ${payments.map((payment, index) => `
-        ${index + 1}. Date: ${new Date(payment.date).toLocaleDateString()}
-           Amount: $${parseFloat(payment.amount).toLocaleString()}
-           Description: ${payment.description || 'N/A'}
-           Method: ${payment.paymentMethod || 'N/A'}
-        ---
-      `).join('')}
-      
-      Generated on: ${new Date().toLocaleDateString()}
-    `;
-
-    // Create and download text file
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `payment_report_${selectedOwner?._id}.txt`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
   };
 
   const handleEdit = (owner) => {
@@ -168,9 +78,11 @@ const ProjectOwners = () => {
       phone: owner.phone,
       address: owner.address,
       company: owner.company || '',
-      totalProjectValue: owner.totalProjectValue || ''
+      // Ensure we convert the number to string for the input field
+      totalProjectValue: owner.totalProjectValue ? owner.totalProjectValue.toString() : ''
     });
     setShowModal(true);
+    setError(''); // Clear any previous errors
   };
 
   const handleDelete = async (owner) => {
@@ -180,8 +92,14 @@ const ProjectOwners = () => {
         fetchOwners();
       } catch (error) {
         console.error('Error deleting project owner:', error);
+        alert('Error deleting project owner. Please try again.');
       }
     }
+  };
+
+  const handleViewPayments = (owner) => {
+    // Navigate to the payments page for this owner
+    navigate(`/project-owners/${owner._id}/payments`);
   };
 
   const resetForm = () => {
@@ -194,12 +112,8 @@ const ProjectOwners = () => {
       totalProjectValue: ''
     });
     setEditingOwner(null);
+    setError(''); // Clear error when form is reset
   };
-
-  // Calculate totals for payments
-  const totalProjectValue = parseFloat(selectedOwner?.totalProjectValue || 0);
-  const paidAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
-  const balanceAmount = totalProjectValue - paidAmount;
 
   const ownerColumns = [
     { key: 'name', title: 'Name' },
@@ -214,7 +128,7 @@ const ProjectOwners = () => {
     { key: 'address', title: 'Address' },
     {
       key: 'actions',
-      title: 'Actions',
+      title: '',
       render: (_, owner) => (
         <div className="flex space-x-2">
           {/* View Button - For all users */}
@@ -223,7 +137,7 @@ const ProjectOwners = () => {
             className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
             title="View Payments"
           >
-            View
+            View Payments
           </button>
 
           {/* Edit Button - Admin only */}
@@ -252,21 +166,6 @@ const ProjectOwners = () => {
     }
   ];
 
-  const paymentColumns = [
-    { 
-      key: 'date', 
-      title: 'Date',
-      render: (value) => new Date(value).toLocaleDateString()
-    },
-    { 
-      key: 'amount', 
-      title: 'Amount',
-      render: (value) => `$${parseFloat(value).toLocaleString()}`
-    },
-    { key: 'description', title: 'Description' },
-    { key: 'paymentMethod', title: 'Payment Method' }
-  ];
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -293,7 +192,7 @@ const ProjectOwners = () => {
         <Table
           columns={ownerColumns}
           data={owners}
-          showActions={true}
+          showActions={false}
         />
       </div>
 
@@ -307,6 +206,13 @@ const ProjectOwners = () => {
         title={editingOwner ? 'Edit Project Owner' : 'Add Project Owner'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
             <input
@@ -355,6 +261,7 @@ const ProjectOwners = () => {
             <input
               type="number"
               step="0.01"
+              min="0"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.totalProjectValue}
               onChange={(e) => setFormData({ ...formData, totalProjectValue: e.target.value })}
@@ -389,84 +296,6 @@ const ProjectOwners = () => {
           </div>
         </form>
       </Modal>
-
-      {/* Payments Modal */}
-      <Modal
-        isOpen={showPaymentsModal}
-        onClose={() => {
-          setShowPaymentsModal(false);
-          setSelectedOwner(null);
-          setPayments([]);
-        }}
-        title={`Payments for ${selectedOwner?.name}`}
-        size="lg"
-      >
-        <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-blue-800">Total Project Value</h3>
-              <p className="text-2xl font-bold text-blue-900">
-                ${totalProjectValue.toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-green-800">Paid Amount</h3>
-              <p className="text-2xl font-bold text-green-900">
-                ${paidAmount.toLocaleString()}
-              </p>
-            </div>
-            <div className={`p-4 rounded-lg ${balanceAmount >= 0 ? 'bg-gray-50' : 'bg-red-50'}`}>
-              <h3 className={`text-sm font-medium ${balanceAmount >= 0 ? 'text-gray-800' : 'text-red-800'}`}>
-                Balance Amount
-              </h3>
-              <p className={`text-2xl font-bold ${balanceAmount >= 0 ? 'text-gray-900' : 'text-red-900'}`}>
-                ${Math.abs(balanceAmount).toLocaleString()} {balanceAmount < 0 ? '(Overpaid)' : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium">Payment History</h3>
-            <div className="flex space-x-2">
-              <button
-                onClick={handleGenerateReport}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-              >
-                Download Report
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={() => setShowPaymentModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Add Payment
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <Table
-              columns={paymentColumns}
-              data={payments}
-              onEdit={isAdmin ? handleEditPayment : null}
-              onDelete={isAdmin ? handleDeletePayment : null}
-              showActions={isAdmin}
-            />
-          </div>
-        </div>
-      </Modal>
-
-      {/* Payment Modal */}
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => {
-          setShowPaymentModal(false);
-          setEditingPayment(null);
-        }}
-        onSave={handlePaymentSubmit}
-        payment={editingPayment}
-      />
     </div>
   );
 };
