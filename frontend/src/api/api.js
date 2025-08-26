@@ -50,9 +50,17 @@ export const authAPI = {
 export const workersAPI = {
   getAll: () => api.get('/workers'),
   getById: (id) => api.get(`/workers/${id}`),
-  create: (data) => api.post('/workers', data),
-  update: (id, data) => api.put(`/workers/${id}`, data),
+  create: (data) => {
+    const formattedData = formatNumberFields(data, ['dailySalary', 'monthlySalary', 'pendingSalary']);
+    return api.post('/workers', formattedData);
+  },
+  update: (id, data) => {
+    const formattedData = formatNumberFields(data, ['dailySalary', 'monthlySalary', 'pendingSalary']);
+    return api.put(`/workers/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/workers/${id}`),
+  getAttendance: (id, params) => api.get(`/workers/${id}/attendance`, { params }),
+  getSalaryHistory: (id) => api.get(`/workers/${id}/salaries`),
 };
 
 // Projects API
@@ -65,6 +73,7 @@ export const projectsAPI = {
   getFinanceSummary: (id) => api.get(`/projects/${id}/finance-summary`),
   processPayment: (id, data) => api.post(`/projects/${id}/process-payment`, data),
   assignWorkers: (id, workerIds) => api.post(`/projects/${id}/assign-workers`, { workerIds }),
+  getAssignedWorkers: (id) => api.get(`/projects/${id}/assigned-workers`),
 };
 
 // Project Owners API
@@ -72,12 +81,10 @@ export const projectOwnersAPI = {
   getAll: () => api.get('/project-owners'),
   getById: (id) => api.get(`/project-owners/${id}`),
   create: (data) => {
-    // Format number fields before sending
     const formattedData = formatNumberFields(data, ['totalProjectValue']);
     return api.post('/project-owners', formattedData);
   },
   update: (id, data) => {
-    // Format number fields before sending
     const formattedData = formatNumberFields(data, ['totalProjectValue']);
     return api.put(`/project-owners/${id}`, formattedData);
   },
@@ -90,12 +97,10 @@ export const materialsAPI = {
   getAll: (projectId) => api.get(`/materials${projectId ? `?projectId=${projectId}` : ''}`),
   getById: (id) => api.get(`/materials/${id}`),
   create: (data) => {
-    // Format number fields before sending
     const formattedData = formatNumberFields(data, ['quantity', 'unitPrice', 'totalCost']);
     return api.post('/materials', formattedData);
   },
   update: (id, data) => {
-    // Format number fields before sending
     const formattedData = formatNumberFields(data, ['quantity', 'unitPrice', 'totalCost']);
     return api.put(`/materials/${id}`, formattedData);
   },
@@ -107,25 +112,34 @@ export const salariesAPI = {
   getAll: (params) => api.get('/salaries', { params }),
   getById: (id) => api.get(`/salaries/${id}`),
   create: (data) => {
-    // Format number fields before sending
-    const formattedData = formatNumberFields(data, ['amount', 'hoursWorked', 'overtimeHours']);
+    const formattedData = formatNumberFields(data, ['amount']);
     return api.post('/salaries', formattedData);
   },
   update: (id, data) => {
-    // Format number fields before sending
-    const formattedData = formatNumberFields(data, ['amount', 'hoursWorked', 'overtimeHours']);
+    const formattedData = formatNumberFields(data, ['amount']);
     return api.put(`/salaries/${id}`, formattedData);
   },
   delete: (id) => api.delete(`/salaries/${id}`),
+  getWorkerSalaries: (workerId) => api.get(`/salaries/worker/${workerId}`),
+  getProjectSalaries: (projectId) => api.get(`/salaries/project/${projectId}`),
 };
 
 // Attendance API
 export const attendanceAPI = {
   getAll: (params) => api.get('/attendance', { params }),
-  create: (data) => api.post('/attendance', data),
-  update: (id, data) => api.put(`/attendance/${id}`, data),
+  getById: (id) => api.get(`/attendance/${id}`),
+  create: (data) => {
+    const formattedData = formatNumberFields(data, ['overtimeHours']);
+    return api.post('/attendance', formattedData);
+  },
+  update: (id, data) => {
+    const formattedData = formatNumberFields(data, ['overtimeHours']);
+    return api.put(`/attendance/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/attendance/${id}`),
   getReport: (params) => api.get('/attendance/report', { params }),
+  getWorkerAttendance: (workerId, params) => api.get(`/attendance/worker/${workerId}`, { params }),
+  getProjectAttendance: (projectId, params) => api.get(`/attendance/project/${projectId}`, { params }),
 };
 
 // Payments API
@@ -134,12 +148,10 @@ export const paymentsAPI = {
   getByOwner: (ownerId) => api.get(`/payments?projectOwner=${ownerId}`),
   getByOwnerId: (ownerId) => api.get(`/payments/owner/${ownerId}`),
   create: (data) => {
-    // Format number fields before sending
     const formattedData = formatNumberFields(data, ['amount']);
     return api.post('/payments', formattedData);
   },
   update: (id, data) => {
-    // Format number fields before sending
     const formattedData = formatNumberFields(data, ['amount']);
     return api.put(`/payments/${id}`, formattedData);
   },
@@ -151,6 +163,15 @@ export const reportsAPI = {
   getDashboard: () => api.get('/reports/dashboard'),
   getFinancial: (params) => api.get('/reports/financial', { params }),
   getWorkerPerformance: (params) => api.get('/reports/worker-performance', { params }),
+  getSalaryReport: (params) => api.get('/reports/salary', { params }),
+  getAttendanceReport: (params) => api.get('/reports/attendance', { params }),
+};
+
+// Dashboard API
+export const dashboardAPI = {
+  getStats: () => api.get('/dashboard/stats'),
+  getRecentActivities: () => api.get('/dashboard/recent-activities'),
+  getUpcomingPayments: () => api.get('/dashboard/upcoming-payments'),
 };
 
 export default api;

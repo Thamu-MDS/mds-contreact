@@ -65,6 +65,22 @@ const Attendance = () => {
       } else {
         await attendanceAPI.create(formData);
       }
+      
+      // Update worker's pending salary if present
+      if (formData.status === 'present') {
+        const worker = workers.find(w => w._id === formData.workerId);
+        if (worker) {
+          const dailySalary = worker.dailySalary || 0;
+          const overtimeRate = dailySalary / 8; // Assuming 8 hours per day
+          const overtimeAmount = formData.overtimeHours * overtimeRate;
+          const totalAmount = dailySalary + overtimeAmount;
+          
+          await workersAPI.update(formData.workerId, {
+            pendingSalary: (worker.pendingSalary || 0) + totalAmount
+          });
+        }
+      }
+      
       fetchAttendance();
       setShowModal(false);
       resetForm();
@@ -89,6 +105,21 @@ const Attendance = () => {
   const handleDelete = async (record) => {
     if (window.confirm('Are you sure you want to delete this attendance record?')) {
       try {
+        // Deduct salary if record was present
+        if (record.status === 'present') {
+          const worker = workers.find(w => w._id === record.workerId._id || w._id === record.workerId);
+          if (worker) {
+            const dailySalary = worker.dailySalary || 0;
+            const overtimeRate = dailySalary / 8;
+            const overtimeAmount = (record.overtimeHours || 0) * overtimeRate;
+            const totalAmount = dailySalary + overtimeAmount;
+            
+            await workersAPI.update(record.workerId._id || record.workerId, {
+              pendingSalary: Math.max(0, (worker.pendingSalary || 0) - totalAmount)
+            });
+          }
+        }
+        
         await attendanceAPI.delete(record._id);
         fetchAttendance();
       } catch (error) {
@@ -205,7 +236,7 @@ const Attendance = () => {
               <option value="">Select Worker</option>
               {workers.map((worker) => (
                 <option key={worker._id} value={worker._id}>
-                  {worker.name} - {worker.role}
+                  {worker.name} - {worker.role} (₹{worker.dailySalary}/day)
                 </option>
               ))}
             </select>

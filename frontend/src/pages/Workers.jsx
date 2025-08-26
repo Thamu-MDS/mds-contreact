@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { workersAPI } from '../api/api';
+import { workersAPI, salariesAPI } from '../api/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
+import PaymentModal from '../components/PaymentModal';
 import { useAuth } from '../contexts/AuthContext';
 
 const Workers = () => {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState(null);
   const [editingWorker, setEditingWorker] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -77,6 +80,37 @@ const Workers = () => {
     }
   };
 
+  const handlePayment = (worker) => {
+    setSelectedWorker(worker);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSubmit = async (paymentData) => {
+    try {
+      // Create salary payment record
+      await salariesAPI.create({
+        workerId: selectedWorker._id,
+        amount: paymentData.amount,
+        paymentDate: paymentData.date,
+        paymentMethod: paymentData.paymentMethod,
+        notes: paymentData.notes,
+        periodStart: paymentData.periodStart,
+        periodEnd: paymentData.periodEnd
+      });
+      
+      // Update worker's pending salary
+      await workersAPI.update(selectedWorker._id, {
+        pendingSalary: selectedWorker.pendingSalary - paymentData.amount
+      });
+      
+      setShowPaymentModal(false);
+      setSelectedWorker(null);
+      fetchWorkers(); // Refresh the worker list
+    } catch (error) {
+      console.error('Error processing payment:', error);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -107,14 +141,33 @@ const Workers = () => {
     { 
       key: 'paymentStatus', 
       title: 'Payment Status',
-      render: (value) => (
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          value === 'paid' ? 'bg-green-100 text-green-800' :
-          value === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-red-100 text-red-800'
-        }`}>
-          {value || 'pending'}
-        </span>
+      render: (value, row) => {
+        const status = row.pendingSalary > 0 ? (row.pendingSalary < row.dailySalary ? 'partial' : 'pending') : 'paid';
+        return (
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            status === 'paid' ? 'bg-green-100 text-green-800' :
+            status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-red-100 text-red-800'
+          }`}>
+            {status}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (value, row) => (
+        <div className="flex space-x-2">
+          {isAdmin && row.pendingSalary > 0 && (
+            <button
+              onClick={() => handlePayment(row)}
+              className="btn-success text-xs"
+            >
+              Pay
+            </button>
+          )}
+        </div>
       )
     }
   ];
@@ -220,6 +273,8 @@ const Workers = () => {
             <input
               type="number"
               required
+              min="0"
+              step="0.01"
               className="input-field"
               value={formData.dailySalary}
               onChange={(e) => setFormData({ ...formData, dailySalary: e.target.value })}
@@ -230,6 +285,8 @@ const Workers = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Salary (₹)</label>
             <input
               type="number"
+              min="0"
+              step="0.01"
               className="input-field"
               value={formData.monthlySalary}
               onChange={(e) => setFormData({ ...formData, monthlySalary: e.target.value })}
@@ -253,6 +310,16 @@ const Workers = () => {
           </div>
         </form>
       </Modal>
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setSelectedWorker(null);
+        }}
+        worker={selectedWorker}
+        onSave={handlePaymentSubmit}
+      />
     </div>
   );
 };

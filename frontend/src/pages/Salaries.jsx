@@ -66,6 +66,15 @@ const Salaries = () => {
       } else {
         await salariesAPI.create(formData);
       }
+      
+      // Update worker's pending salary
+      const worker = workers.find(w => w._id === formData.workerId);
+      if (worker) {
+        await workersAPI.update(formData.workerId, {
+          pendingSalary: Math.max(0, (worker.pendingSalary || 0) - formData.amount)
+        });
+      }
+      
       fetchSalaries();
       setShowModal(false);
       resetForm();
@@ -91,6 +100,14 @@ const Salaries = () => {
   const handleDelete = async (salary) => {
     if (window.confirm('Are you sure you want to delete this salary record?')) {
       try {
+        // Add back the amount to worker's pending salary
+        const worker = workers.find(w => w._id === salary.workerId._id || w._id === salary.workerId);
+        if (worker) {
+          await workersAPI.update(salary.workerId._id || salary.workerId, {
+            pendingSalary: (worker.pendingSalary || 0) + salary.amount
+          });
+        }
+        
         await salariesAPI.delete(salary._id);
         fetchSalaries();
       } catch (error) {
@@ -161,7 +178,7 @@ const Salaries = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Salaries</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Salary Payments</h1>
         {isAdmin && (
           <button
             onClick={() => setShowModal(true)}
@@ -202,7 +219,7 @@ const Salaries = () => {
               <option value="">Select Worker</option>
               {workers.map((worker) => (
                 <option key={worker._id} value={worker._id}>
-                  {worker.name} - {worker.role}
+                  {worker.name} - {worker.role} (Pending: ₹{worker.pendingSalary || 0})
                 </option>
               ))}
             </select>

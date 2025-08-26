@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { reportsAPI } from '../api/api';
+import { reportsAPI, projectsAPI } from '../api/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardStats();
+    fetchProjects();
   }, []);
+
+  useEffect(() => {
+    if (selectedProject) {
+      fetchProjectStats(selectedProject);
+    }
+  }, [selectedProject]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -20,6 +30,34 @@ const Dashboard = () => {
     }
   };
 
+  const fetchProjects = async () => {
+    try {
+      const response = await projectsAPI.getAll();
+      setProjects(response.data || []);
+      // Set the first project as default selection if available
+      if (response.data && response.data.length > 0) {
+        setSelectedProject(response.data[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  const fetchProjectStats = async (projectId) => {
+    try {
+      const response = await reportsAPI.getProjectDashboard(projectId);
+      // Update the stats with project-specific data
+      setStats(prevStats => ({
+        ...prevStats,
+        projectStats: response.data
+      }));
+    } catch (error) {
+      console.error('Error fetching project stats:', error);
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -27,7 +65,29 @@ const Dashboard = () => {
     }).format(amount);
   };
 
-  if (loading) {
+  const getFinancialData = () => {
+    if (selectedProject && stats?.projectStats) {
+      return {
+        totalIncome: stats.projectStats.totalIncome || 0,
+        materialCost: stats.projectStats.materialCost || 0,
+        salaryCost: stats.projectStats.salaryCost || 0,
+        profit: stats.projectStats.profit || 0,
+        profitMargin: stats.projectStats.profitMargin || 0
+      };
+    }
+    
+    return {
+      totalIncome: stats?.totalIncome || 0,
+      materialCost: stats?.materialCost || 0,
+      salaryCost: stats?.salaryCost || 0,
+      profit: stats?.profit || 0,
+      profitMargin: stats?.profitMargin || 0
+    };
+  };
+
+  const financialData = getFinancialData();
+
+  if (loading || projectsLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -104,37 +164,53 @@ const Dashboard = () => {
       {/* Financial Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Financial Overview</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Financial Overview</h3>
+            <div className="relative">
+              <select
+                value={selectedProject || ''}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="block w-full py-2 pl-3 pr-10 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Projects</option>
+                {projects.map(project => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Total Income</span>
               <span className="text-lg font-bold text-green-600">
-                {formatCurrency(stats?.totalIncome || 0)}
+                {formatCurrency(financialData.totalIncome)}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Material Costs</span>
               <span className="text-lg font-bold text-red-600">
-                {formatCurrency(stats?.materialCost || 0)}
+                {formatCurrency(financialData.materialCost)}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600">Salary Costs</span>
               <span className="text-lg font-bold text-red-600">
-                {formatCurrency(stats?.salaryCost || 0)}
+                {formatCurrency(financialData.salaryCost)}
               </span>
             </div>
             <div className="border-t pt-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-900">Net Profit</span>
-                <span className={`text-xl font-bold ${stats?.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(stats?.profit || 0)}
+                <span className={`text-xl font-bold ${financialData.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(financialData.profit)}
                 </span>
               </div>
               <div className="flex justify-between items-center mt-1">
                 <span className="text-xs text-gray-500">Profit Margin</span>
-                <span className={`text-sm font-medium ${stats?.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {stats?.profitMargin || 0}%
+                <span className={`text-sm font-medium ${financialData.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {financialData.profitMargin}%
                 </span>
               </div>
             </div>
