@@ -17,9 +17,10 @@ const ProjectOwners = () => {
     phone: '',
     address: '',
     company: '',
-    totalProjectValue: ''
+    totalProjectValue: '',
+    projectName: '' // Added project name field
   });
-  const [error, setError] = useState(''); // Add error state
+  const [error, setError] = useState('');
 
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -41,10 +42,9 @@ const ProjectOwners = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); // Reset error before submission
+    setError('');
     
     try {
-      // Convert totalProjectValue to a number before sending
       const dataToSend = {
         ...formData,
         totalProjectValue: formData.totalProjectValue ? parseFloat(formData.totalProjectValue) : 0
@@ -60,7 +60,6 @@ const ProjectOwners = () => {
       resetForm();
     } catch (error) {
       console.error('Error saving project owner:', error);
-      // Check if it's a duplicate phone error
       if (error.response?.data?.error?.includes('phone') || 
           error.response?.data?.error?.includes('duplicate')) {
         setError('A project owner with this phone number already exists.');
@@ -78,11 +77,11 @@ const ProjectOwners = () => {
       phone: owner.phone,
       address: owner.address,
       company: owner.company || '',
-      // Ensure we convert the number to string for the input field
-      totalProjectValue: owner.totalProjectValue ? owner.totalProjectValue.toString() : ''
+      totalProjectValue: owner.totalProjectValue ? owner.totalProjectValue.toString() : '',
+      projectName: owner.projectName || '' // Added project name field
     });
     setShowModal(true);
-    setError(''); // Clear any previous errors
+    setError('');
   };
 
   const handleDelete = async (owner) => {
@@ -98,7 +97,6 @@ const ProjectOwners = () => {
   };
 
   const handleViewPayments = (owner) => {
-    // Navigate to the payments page for this owner
     navigate(`/project-owners/${owner._id}/payments`);
   };
 
@@ -109,10 +107,11 @@ const ProjectOwners = () => {
       phone: '',
       address: '',
       company: '',
-      totalProjectValue: ''
+      totalProjectValue: '',
+      projectName: '' // Added project name field
     });
     setEditingOwner(null);
-    setError(''); // Clear error when form is reset
+    setError('');
   };
 
   const ownerColumns = [
@@ -120,6 +119,7 @@ const ProjectOwners = () => {
     { key: 'email', title: 'Email' },
     { key: 'phone', title: 'Phone' },
     { key: 'company', title: 'Company' },
+    { key: 'projectName', title: 'Project Name' }, // Added project name column
     { 
       key: 'totalProjectValue', 
       title: 'Total Value',
@@ -131,7 +131,6 @@ const ProjectOwners = () => {
       title: '',
       render: (_, owner) => (
         <div className="flex space-x-2">
-          {/* View Button - For all users */}
           <button
             onClick={() => handleViewPayments(owner)}
             className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -140,7 +139,6 @@ const ProjectOwners = () => {
             View Payments
           </button>
 
-          {/* Edit Button - Admin only */}
           {isAdmin && (
             <button
               onClick={() => handleEdit(owner)}
@@ -151,7 +149,6 @@ const ProjectOwners = () => {
             </button>
           )}
 
-          {/* Delete Button - Admin only */}
           {isAdmin && (
             <button
               onClick={() => handleDelete(owner)}
@@ -196,7 +193,6 @@ const ProjectOwners = () => {
         />
       </div>
 
-      {/* Project Owner Modal */}
       <Modal
         isOpen={showModal}
         onClose={() => {
@@ -206,7 +202,6 @@ const ProjectOwners = () => {
         title={editingOwner ? 'Edit Project Owner' : 'Add Project Owner'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Error message */}
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}
@@ -253,6 +248,17 @@ const ProjectOwners = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.company}
               onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+            />
+          </div>
+          
+          {/* Added Project Name field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={formData.projectName}
+              onChange={(e) => setFormData({ ...formData, projectName: e.target.value })}
             />
           </div>
           

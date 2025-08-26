@@ -9,12 +9,14 @@ const projectOwnerSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
+    unique: true, // Added unique constraint
     trim: true,
     lowercase: true
   },
   phone: {
     type: String,
     required: true,
+    unique: true, // Added unique constraint
     trim: true
   },
   address: {
@@ -26,6 +28,11 @@ const projectOwnerSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  projectName: {
+    type: String,
+    required: true, // Made projectName required
+    trim: true
   },
   totalProjectValue: {
     type: Number,

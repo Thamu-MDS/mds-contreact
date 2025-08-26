@@ -67,8 +67,14 @@ export const workersAPI = {
 export const projectsAPI = {
   getAll: () => api.get('/projects'),
   getById: (id) => api.get(`/projects/${id}`),
-  create: (data) => api.post('/projects', data),
-  update: (id, data) => api.put(`/projects/${id}`, data),
+  create: (data) => {
+    const formattedData = formatNumberFields(data, ['totalAmount']);
+    return api.post('/projects', formattedData);
+  },
+  update: (id, data) => {
+    const formattedData = formatNumberFields(data, ['totalAmount']);
+    return api.put(`/projects/${id}`, formattedData);
+  },
   delete: (id) => api.delete(`/projects/${id}`),
   getFinanceSummary: (id) => api.get(`/projects/${id}/finance-summary`),
   processPayment: (id, data) => api.post(`/projects/${id}/process-payment`, data),

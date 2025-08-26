@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { attendanceAPI, workersAPI, projectsAPI } from '../api/api';
+import { attendanceAPI, workersAPI, projectOwnersAPI } from '../api/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ const Attendance = () => {
     overtimeHours: 0,
     notes: ''
   });
+  const [error, setError] = useState('');
 
   const { isAdmin } = useAuth();
 
@@ -30,10 +31,13 @@ const Attendance = () => {
 
   const fetchAttendance = async () => {
     try {
+      setLoading(true);
       const response = await attendanceAPI.getAll();
       setAttendance(response.data);
+      setError('');
     } catch (error) {
       console.error('Error fetching attendance:', error);
+      setError('Failed to load attendance data');
     } finally {
       setLoading(false);
     }
@@ -50,20 +54,67 @@ const Attendance = () => {
 
   const fetchProjects = async () => {
     try {
-      const response = await projectsAPI.getAll();
-      setProjects(response.data);
+      const response = await projectOwnersAPI.getAll();
+      const projectsData = response.data.map(owner => ({
+        _id: owner._id,
+        name: owner.projectName || 'Unnamed Project',
+        clientName: owner.company || owner.name || ''
+      }));
+      setProjects(projectsData);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      setProjects([]);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    
+    // Validate required fields
+    if (!formData.workerId || !formData.projectId || !formData.date) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    // Validate worker exists
+    const selectedWorker = workers.find(w => w._id === formData.workerId);
+    if (!selectedWorker) {
+      setError('Selected worker not found');
+      return;
+    }
+    
     try {
+      // Format the data correctly for the backend
+      const submitData = {
+        date: new Date(formData.date).toISOString(),
+        worker: formData.workerId,
+        project: formData.projectId,
+        status: formData.status,
+        overtimeHours: formData.overtimeHours,
+        notes: formData.notes || ''
+      };
+
+      // Check for existing record for the same worker and date
+      const existingRecord = attendance.find(record => {
+        const recordWorkerId = record.worker?._id || record.worker;
+        const recordDate = new Date(record.date).toISOString().split('T')[0];
+        const submitDate = new Date(submitData.date).toISOString().split('T')[0];
+        
+        return recordWorkerId === submitData.worker && 
+               recordDate === submitDate &&
+               (!editingRecord || record._id !== editingRecord._id);
+      });
+
+      if (existingRecord) {
+        setError('Attendance record already exists for this worker on this date');
+        return;
+      }
+
       if (editingRecord) {
-        await attendanceAPI.update(editingRecord._id, formData);
+        await attendanceAPI.update(editingRecord._id, submitData);
       } else {
-        await attendanceAPI.create(formData);
+        await attendanceAPI.create(submitData);
       }
       
       // Update worker's pending salary if present
@@ -71,7 +122,7 @@ const Attendance = () => {
         const worker = workers.find(w => w._id === formData.workerId);
         if (worker) {
           const dailySalary = worker.dailySalary || 0;
-          const overtimeRate = dailySalary / 8; // Assuming 8 hours per day
+          const overtimeRate = dailySalary / 8;
           const overtimeAmount = formData.overtimeHours * overtimeRate;
           const totalAmount = dailySalary + overtimeAmount;
           
@@ -86,35 +137,56 @@ const Attendance = () => {
       resetForm();
     } catch (error) {
       console.error('Error saving attendance:', error);
+      if (error.response?.data?.code === 11000) {
+        setError('Attendance record already exists for this worker on this date');
+      } else {
+        setError(`Error saving attendance: ${error.response?.data?.message || error.message}`);
+      }
     }
   };
 
   const handleEdit = (record) => {
     setEditingRecord(record);
+    
+    // Format the date correctly for the input field (YYYY-MM-DD)
+    let formattedDate = '';
+    if (record.date) {
+      const dateObj = new Date(record.date);
+      formattedDate = dateObj.toISOString().split('T')[0];
+    }
+    
+    // Extract the correct IDs (handle both populated objects and raw IDs)
+    const workerId = record.worker?._id || record.worker || record.workerId?._id || record.workerId;
+    const projectId = record.project?._id || record.project || record.projectId?._id || record.projectId;
+    
     setFormData({
-      date: record.date ? record.date.split('T')[0] : '',
-      workerId: record.workerId._id || record.workerId,
-      projectId: record.projectId._id || record.projectId,
+      date: formattedDate,
+      workerId: workerId,
+      projectId: projectId,
       status: record.status,
       overtimeHours: record.overtimeHours || 0,
       notes: record.notes || ''
     });
     setShowModal(true);
+    setError('');
   };
 
   const handleDelete = async (record) => {
     if (window.confirm('Are you sure you want to delete this attendance record?')) {
       try {
+        // Extract worker ID correctly
+        const workerId = record.worker?._id || record.worker || record.workerId?._id || record.workerId;
+        
         // Deduct salary if record was present
         if (record.status === 'present') {
-          const worker = workers.find(w => w._id === record.workerId._id || w._id === record.workerId);
+          const worker = workers.find(w => w._id === workerId);
           if (worker) {
             const dailySalary = worker.dailySalary || 0;
             const overtimeRate = dailySalary / 8;
             const overtimeAmount = (record.overtimeHours || 0) * overtimeRate;
             const totalAmount = dailySalary + overtimeAmount;
             
-            await workersAPI.update(record.workerId._id || record.workerId, {
+            await workersAPI.update(workerId, {
               pendingSalary: Math.max(0, (worker.pendingSalary || 0) - totalAmount)
             });
           }
@@ -124,6 +196,7 @@ const Attendance = () => {
         fetchAttendance();
       } catch (error) {
         console.error('Error deleting attendance:', error);
+        setError(`Error deleting attendance: ${error.response?.data?.message || error.message}`);
       }
     }
   };
@@ -138,23 +211,48 @@ const Attendance = () => {
       notes: ''
     });
     setEditingRecord(null);
+    setError('');
   };
 
   const columns = [
     { 
       key: 'date', 
       title: 'Date',
-      render: (value) => new Date(value).toLocaleDateString()
+      render: (value) => {
+        if (!value) return 'N/A';
+        try {
+          return new Date(value).toLocaleDateString();
+        } catch (e) {
+          console.error('Error parsing date:', e, value);
+          return 'Invalid Date';
+        }
+      }
     },
     { 
-      key: 'workerId', 
+      key: 'worker',
       title: 'Worker',
-      render: (value) => value?.name || 'N/A'
+      render: (value) => {
+        // Handle both populated object and ID string
+        if (typeof value === 'object' && value !== null) {
+          return value.name || 'N/A';
+        } else {
+          const worker = workers.find(w => w._id === value);
+          return worker ? worker.name : 'N/A';
+        }
+      }
     },
     { 
-      key: 'projectId', 
+      key: 'project',
       title: 'Project',
-      render: (value) => value?.name || 'N/A'
+      render: (value) => {
+        // Handle both populated object and ID string
+        if (typeof value === 'object' && value !== null) {
+          return value.name || value.projectName || 'N/A';
+        } else {
+          const project = projects.find(p => p._id === value);
+          return project ? project.name : 'N/A';
+        }
+      }
     },
     { 
       key: 'status', 
@@ -182,20 +280,34 @@ const Attendance = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Attendance</h1>
         {isAdmin && (
           <button
             onClick={() => setShowModal(true)}
-            className="btn-primary"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Mark Attendance
           </button>
         )}
       </div>
 
-      <div className="card">
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          <span className="block sm:inline">{error}</span>
+          <button
+            onClick={() => setError('')}
+            className="absolute top-0 right-0 p-2"
+          >
+            <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <Table
           columns={columns}
           data={attendance}
@@ -219,7 +331,7 @@ const Attendance = () => {
             <input
               type="date"
               required
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
             />
@@ -229,7 +341,7 @@ const Attendance = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Worker</label>
             <select
               required
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.workerId}
               onChange={(e) => setFormData({ ...formData, workerId: e.target.value })}
             >
@@ -246,14 +358,14 @@ const Attendance = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
             <select
               required
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.projectId}
               onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
             >
               <option value="">Select Project</option>
               {projects.map((project) => (
                 <option key={project._id} value={project._id}>
-                  {project.name}
+                  {project.name} {project.clientName ? `- ${project.clientName}` : ''}
                 </option>
               ))}
             </select>
@@ -262,7 +374,7 @@ const Attendance = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
             >
@@ -278,16 +390,16 @@ const Attendance = () => {
               type="number"
               min="0"
               step="0.5"
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.overtimeHours}
-              onChange={(e) => setFormData({ ...formData, overtimeHours: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, overtimeHours: parseFloat(e.target.value) || 0 })}
             />
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <textarea
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={2}
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -295,7 +407,7 @@ const Attendance = () => {
           </div>
           
           <div className="flex space-x-3 pt-4">
-            <button type="submit" className="btn-primary flex-1">
+            <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
               {editingRecord ? 'Update Attendance' : 'Mark Attendance'}
             </button>
             <button
@@ -304,7 +416,7 @@ const Attendance = () => {
                 setShowModal(false);
                 resetForm();
               }}
-              className="btn-secondary flex-1"
+              className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
             >
               Cancel
             </button>

@@ -5,14 +5,14 @@ const attendanceSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  workerId: {
+  worker: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Worker',
     required: true
   },
-  projectId: {
+  project: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
+    ref: 'ProjectOwner',
     required: true
   },
   status: {
@@ -22,15 +22,28 @@ const attendanceSchema = new mongoose.Schema({
   },
   overtimeHours: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   notes: {
-    type: String
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true
 });
 
-attendanceSchema.index({ date: 1, workerId: 1, projectId: 1 }, { unique: true });
+// Compound index to prevent duplicate attendance records for same worker on same date
+attendanceSchema.index({ worker: 1, date: 1 }, { unique: true });
 
-export default mongoose.model('Attendance', attendanceSchema);
+// Virtual for formatted date
+attendanceSchema.virtual('formattedDate').get(function() {
+  return this.date.toISOString().split('T')[0];
+});
+
+// Ensure virtual fields are serialized
+attendanceSchema.set('toJSON', { virtuals: true });
+attendanceSchema.set('toObject', { virtuals: true });
+
+const Attendance = mongoose.model('Attendance', attendanceSchema);
+export default Attendance;

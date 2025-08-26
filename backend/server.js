@@ -6,7 +6,7 @@ import connectDB from './config/db.js';
 import { errorHandler } from './middleware/error.js';
 import { createAdminUser } from './utils/createAdmin.js';
 
-// Route imports
+// Route imports - fixed to use default imports
 import authRoutes from './routes/auth.js';
 import workerRoutes from './routes/workers.js';
 import projectRoutes from './routes/projects.js';

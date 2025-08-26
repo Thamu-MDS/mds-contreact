@@ -1,23 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { reportsAPI, projectsAPI } from '../api/api';
+import { reportsAPI, projectOwnersAPI, paymentsAPI } from '../api/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
-  const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [projectOwners, setProjectOwners] = useState([]);
+  const [selectedProjectOwner, setSelectedProjectOwner] = useState(null);
+  const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectOwnersLoading, setProjectOwnersLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardStats();
-    fetchProjects();
+    fetchProjectOwners();
   }, []);
 
   useEffect(() => {
-    if (selectedProject) {
-      fetchProjectStats(selectedProject);
+    if (selectedProjectOwner) {
+      fetchProjectOwnerStats(selectedProjectOwner);
+      fetchPaidAmount(selectedProjectOwner);
+    } else {
+      // If no project owner is selected, get all payments
+      fetchAllPaidAmount();
     }
-  }, [selectedProject]);
+  }, [selectedProjectOwner]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -30,31 +35,58 @@ const Dashboard = () => {
     }
   };
 
-  const fetchProjects = async () => {
+  const fetchProjectOwners = async () => {
     try {
-      const response = await projectsAPI.getAll();
-      setProjects(response.data || []);
-      // Set the first project as default selection if available
-      if (response.data && response.data.length > 0) {
-        setSelectedProject(response.data[0].id);
-      }
+      const response = await projectOwnersAPI.getAll();
+      setProjectOwners(response.data || []);
     } catch (error) {
-      console.error('Error fetching projects:', error);
+      console.error('Error fetching project owners:', error);
     } finally {
-      setProjectsLoading(false);
+      setProjectOwnersLoading(false);
     }
   };
 
-  const fetchProjectStats = async (projectId) => {
+  const fetchProjectOwnerStats = async (projectOwnerId) => {
     try {
-      const response = await reportsAPI.getProjectDashboard(projectId);
-      // Update the stats with project-specific data
+      const response = await reportsAPI.getProjectOwnerDashboard(projectOwnerId);
+      // Update the stats with project owner-specific data
       setStats(prevStats => ({
         ...prevStats,
-        projectStats: response.data
+        projectOwnerStats: response.data
       }));
     } catch (error) {
-      console.error('Error fetching project stats:', error);
+      console.error('Error fetching project owner stats:', error);
+    }
+  };
+
+  const fetchPaidAmount = async (projectOwnerId) => {
+    try {
+      const response = await paymentsAPI.getByOwner(projectOwnerId);
+      const totalPaid = response.data.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+      setPaidAmount(totalPaid);
+    } catch (error) {
+      console.error('Error fetching paid amount:', error);
+      setPaidAmount(0);
+    }
+  };
+
+  const fetchAllPaidAmount = async () => {
+    try {
+      // Get all project owners and their payments
+      const owners = await projectOwnersAPI.getAll();
+      let totalPaid = 0;
+      
+      // Fetch payments for each owner and sum them up
+      for (const owner of owners.data) {
+        const paymentsResponse = await paymentsAPI.getByOwner(owner._id);
+        const ownerPaid = paymentsResponse.data.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+        totalPaid += ownerPaid;
+      }
+      
+      setPaidAmount(totalPaid);
+    } catch (error) {
+      console.error('Error fetching all paid amounts:', error);
+      setPaidAmount(0);
     }
   };
 
@@ -62,32 +94,39 @@ const Dashboard = () => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-    }).format(amount);
+    }).format(amount || 0);
   };
 
   const getFinancialData = () => {
-    if (selectedProject && stats?.projectStats) {
+    if (selectedProjectOwner && stats?.projectOwnerStats) {
       return {
-        totalIncome: stats.projectStats.totalIncome || 0,
-        materialCost: stats.projectStats.materialCost || 0,
-        salaryCost: stats.projectStats.salaryCost || 0,
-        profit: stats.projectStats.profit || 0,
-        profitMargin: stats.projectStats.profitMargin || 0
+        totalPaidAmount: paidAmount,
+        materialCost: stats.projectOwnerStats.materialCost || 0,
+        salaryCost: stats.projectOwnerStats.salaryCost || 0,
+        profit: (paidAmount - (stats.projectOwnerStats.materialCost || 0) - (stats.projectOwnerStats.salaryCost || 0)),
+        profitMargin: paidAmount > 0 ? 
+          ((paidAmount - (stats.projectOwnerStats.materialCost || 0) - (stats.projectOwnerStats.salaryCost || 0)) / paidAmount) * 100 : 0
       };
     }
     
+    // Calculate totals for all projects
+    const totalMaterialCost = stats?.materialCost || 0;
+    const totalSalaryCost = stats?.salaryCost || 0;
+    const totalProfit = paidAmount - totalMaterialCost - totalSalaryCost;
+    const totalProfitMargin = paidAmount > 0 ? (totalProfit / paidAmount) * 100 : 0;
+    
     return {
-      totalIncome: stats?.totalIncome || 0,
-      materialCost: stats?.materialCost || 0,
-      salaryCost: stats?.salaryCost || 0,
-      profit: stats?.profit || 0,
-      profitMargin: stats?.profitMargin || 0
+      totalPaidAmount: paidAmount,
+      materialCost: totalMaterialCost,
+      salaryCost: totalSalaryCost,
+      profit: totalProfit,
+      profitMargin: totalProfitMargin
     };
   };
 
   const financialData = getFinancialData();
 
-  if (loading || projectsLoading) {
+  if (loading || projectOwnersLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -168,14 +207,14 @@ const Dashboard = () => {
             <h3 className="text-lg font-medium text-gray-900">Financial Overview</h3>
             <div className="relative">
               <select
-                value={selectedProject || ''}
-                onChange={(e) => setSelectedProject(e.target.value)}
+                value={selectedProjectOwner || ''}
+                onChange={(e) => setSelectedProjectOwner(e.target.value || null)}
                 className="block w-full py-2 pl-3 pr-10 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All Projects</option>
-                {projects.map(project => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
+                {projectOwners.map(owner => (
+                  <option key={owner._id} value={owner._id}>
+                    {owner.projectName || owner.name}
                   </option>
                 ))}
               </select>
@@ -183,9 +222,9 @@ const Dashboard = () => {
           </div>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-600">Total Income</span>
+              <span className="text-sm font-medium text-gray-600">Total Paid Amount</span>
               <span className="text-lg font-bold text-green-600">
-                {formatCurrency(financialData.totalIncome)}
+                {formatCurrency(financialData.totalPaidAmount)}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -210,7 +249,7 @@ const Dashboard = () => {
               <div className="flex justify-between items-center mt-1">
                 <span className="text-xs text-gray-500">Profit Margin</span>
                 <span className={`text-sm font-medium ${financialData.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {financialData.profitMargin}%
+                  {financialData.profitMargin.toFixed(2)}%
                 </span>
               </div>
             </div>
@@ -228,7 +267,7 @@ const Dashboard = () => {
               <div className="text-sm font-medium text-blue-900">Manage Workers</div>
             </button>
             <button
-              onClick={() => window.location.href = '/projects'}
+              onClick={() => window.location.href = '/project-owners'}
               className="p-4 bg-green-50 hover:bg-green-100 rounded-lg text-center transition-colors duration-200"
             >
               <div className="text-green-600 text-xl mb-2">🏗️</div>
