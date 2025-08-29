@@ -1,29 +1,26 @@
-import express from 'express';
-import {
-  getProjectOwners,
-  getProjectOwner,
+const express = require('express');
+const router = express.Router();
+const {
+  getAllProjectOwners,
+  getProjectOwnerById,
   createProjectOwner,
   updateProjectOwner,
   deleteProjectOwner,
   getProjectsSummary
-} from '../controllers/projectOwners.js';
-import { protect, authorize } from '../middleware/auth.js';
+} = require('../controllers/projectOwnersController');
+const { protect, admin } = require('../middleware/auth');
+const { validateProjectOwner } = require('../middleware/validation');
 
-const router = express.Router();
+router.route('/')
+  .get(protect, getAllProjectOwners)
+  .post(protect, admin, validateProjectOwner, createProjectOwner);
 
-router.use(protect);
+router.route('/:id')
+  .get(protect, getProjectOwnerById)
+  .put(protect, admin, validateProjectOwner, updateProjectOwner)
+  .delete(protect, admin, deleteProjectOwner);
 
-router
-  .route('/')
-  .get(getProjectOwners)
-  .post(authorize('admin'), createProjectOwner);
+router.route('/:id/projects-summary')
+  .get(protect, getProjectsSummary);
 
-router
-  .route('/:id')
-  .get(getProjectOwner)
-  .put(authorize('admin'), updateProjectOwner)
-  .delete(authorize('admin'), deleteProjectOwner);
-
-router.get('/:id/projects-summary', getProjectsSummary);
-
-export default router;
+module.exports = router;

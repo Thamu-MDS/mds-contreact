@@ -1,26 +1,30 @@
-import express from 'express';
-import {
-  getWorkers,
-  getWorker,
+const express = require('express');
+const router = express.Router();
+const {
+  getAllWorkers,
+  getWorkerById,
   createWorker,
   updateWorker,
-  deleteWorker
-} from '../controllers/workers.js';
-import { protect, authorize } from '../middleware/auth.js';
+  deleteWorker,
+  getWorkerAttendance,
+  getWorkerSalaryHistory
+} = require('../controllers/workersController');
+const { protect, admin } = require('../middleware/auth');
+const { validateWorker } = require('../middleware/validation');
 
-const router = express.Router();
+router.route('/')
+  .get(protect, getAllWorkers)
+  .post(protect, admin, validateWorker, createWorker);
 
-router.use(protect);
+router.route('/:id')
+  .get(protect, getWorkerById)
+  .put(protect, admin, validateWorker, updateWorker)
+  .delete(protect, admin, deleteWorker);
 
-router
-  .route('/')
-  .get(getWorkers)
-  .post(authorize('admin'), createWorker);
+router.route('/:id/attendance')
+  .get(protect, getWorkerAttendance);
 
-router
-  .route('/:id')
-  .get(getWorker)
-  .put(authorize('admin'), updateWorker)
-  .delete(authorize('admin'), deleteWorker);
+router.route('/:id/salaries')
+  .get(protect, getWorkerSalaryHistory);
 
-export default router;
+module.exports = router;

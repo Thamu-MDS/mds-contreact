@@ -20,6 +20,7 @@ const Attendance = () => {
     notes: ''
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const { isAdmin } = useAuth();
 
@@ -70,17 +71,11 @@ const Attendance = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     
     // Validate required fields
     if (!formData.workerId || !formData.projectId || !formData.date) {
       setError('Please fill in all required fields');
-      return;
-    }
-    
-    // Validate worker exists
-    const selectedWorker = workers.find(w => w._id === formData.workerId);
-    if (!selectedWorker) {
-      setError('Selected worker not found');
       return;
     }
     
@@ -91,48 +86,28 @@ const Attendance = () => {
         worker: formData.workerId,
         project: formData.projectId,
         status: formData.status,
-        overtimeHours: formData.overtimeHours,
+        overtimeHours: parseFloat(formData.overtimeHours) || 0,
         notes: formData.notes || ''
       };
 
-      // Check for existing record for the same worker and date
-      const existingRecord = attendance.find(record => {
-        const recordWorkerId = record.worker?._id || record.worker;
-        const recordDate = new Date(record.date).toISOString().split('T')[0];
-        const submitDate = new Date(submitData.date).toISOString().split('T')[0];
-        
-        return recordWorkerId === submitData.worker && 
-               recordDate === submitDate &&
-               (!editingRecord || record._id !== editingRecord._id);
-      });
-
-      if (existingRecord) {
-        setError('Attendance record already exists for this worker on this date');
-        return;
-      }
-
+      let response;
       if (editingRecord) {
-        await attendanceAPI.update(editingRecord._id, submitData);
+        response = await attendanceAPI.update(editingRecord._id, submitData);
+        setSuccess('Attendance record updated successfully');
       } else {
-        await attendanceAPI.create(submitData);
+        response = await attendanceAPI.create(submitData);
+        setSuccess('Attendance record created successfully');
       }
       
-      // Update worker's pending salary if present
-      if (formData.status === 'present') {
-        const worker = workers.find(w => w._id === formData.workerId);
-        if (worker) {
-          const dailySalary = worker.dailySalary || 0;
-          const overtimeRate = dailySalary / 8;
-          const overtimeAmount = formData.overtimeHours * overtimeRate;
-          const totalAmount = dailySalary + overtimeAmount;
-          
-          await workersAPI.update(formData.workerId, {
-            pendingSalary: (worker.pendingSalary || 0) + totalAmount
-          });
-        }
+      // Update local state with the returned data
+      if (editingRecord) {
+        setAttendance(attendance.map(item => 
+          item._id === editingRecord._id ? response.data : item
+        ));
+      } else {
+        setAttendance([response.data, ...attendance]);
       }
       
-      fetchAttendance();
       setShowModal(false);
       resetForm();
     } catch (error) {
@@ -156,8 +131,8 @@ const Attendance = () => {
     }
     
     // Extract the correct IDs (handle both populated objects and raw IDs)
-    const workerId = record.worker?._id || record.worker || record.workerId?._id || record.workerId;
-    const projectId = record.project?._id || record.project || record.projectId?._id || record.projectId;
+    const workerId = record.worker?._id || record.worker;
+    const projectId = record.project?._id || record.project;
     
     setFormData({
       date: formattedDate,
@@ -169,31 +144,16 @@ const Attendance = () => {
     });
     setShowModal(true);
     setError('');
+    setSuccess('');
   };
 
   const handleDelete = async (record) => {
     if (window.confirm('Are you sure you want to delete this attendance record?')) {
       try {
-        // Extract worker ID correctly
-        const workerId = record.worker?._id || record.worker || record.workerId?._id || record.workerId;
-        
-        // Deduct salary if record was present
-        if (record.status === 'present') {
-          const worker = workers.find(w => w._id === workerId);
-          if (worker) {
-            const dailySalary = worker.dailySalary || 0;
-            const overtimeRate = dailySalary / 8;
-            const overtimeAmount = (record.overtimeHours || 0) * overtimeRate;
-            const totalAmount = dailySalary + overtimeAmount;
-            
-            await workersAPI.update(workerId, {
-              pendingSalary: Math.max(0, (worker.pendingSalary || 0) - totalAmount)
-            });
-          }
-        }
-        
         await attendanceAPI.delete(record._id);
-        fetchAttendance();
+        setSuccess('Attendance record deleted successfully');
+        // Remove from local state
+        setAttendance(attendance.filter(item => item._id !== record._id));
       } catch (error) {
         console.error('Error deleting attendance:', error);
         setError(`Error deleting attendance: ${error.response?.data?.message || error.message}`);
@@ -301,6 +261,20 @@ const Attendance = () => {
             className="absolute top-0 right-0 p-2"
           >
             <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
+          <span className="block sm:inline">{success}</span>
+          <button
+            onClick={() => setSuccess('')}
+            className="absolute top-0 right-0 p-2"
+          >
+            <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>

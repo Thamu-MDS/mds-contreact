@@ -1,56 +1,38 @@
-import jwt from 'jsonwebtoken';
-import asyncHandler from 'express-async-handler';
-import User from '../models/User.js';
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-export const authenticateToken = asyncHandler(async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
-
+const protect = async (req, res, next) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
+    let token;
     
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid token - user not found' });
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
     }
-
-    req.user = user;
-    next();
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Not authorized, no token' });
+    }
+    
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+      req.user = await User.findById(decoded.id).select('-password');
+      next();
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return res.status(401).json({ message: 'Not authorized, token failed' });
+    }
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token expired' });
-    }
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-    res.status(500).json({ message: 'Server error during authentication' });
+    console.error('Auth middleware error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
-});
-
-// Role-based authorization middleware
-export const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-    
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        message: `User role ${req.user.role} is not authorized to access this resource` 
-      });
-    }
-    next();
-  };
 };
 
-// Convenience methods for specific roles
-export const isAdmin = authorize('admin');
-export const isProjectOwner = authorize('project_owner');
-export const isAdminOrProjectOwner = authorize('admin', 'project_owner');
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Not authorized as admin' });
+  }
+};
 
-// Alternative implementation using the same pattern as your second example
-export const protect = authenticateToken;
+module.exports = { protect, admin };

@@ -1,33 +1,38 @@
-import express from 'express';
-import {
-  getProjects,
-  getProject,
+const express = require('express');
+const router = express.Router();
+const {
+  getAllProjects,
+  getProjectById,
   createProject,
   updateProject,
   deleteProject,
   getFinanceSummary,
   processPayment,
-  assignWorkers
-} from '../controllers/projects.js';
-import { protect, authorize } from '../middleware/auth.js';
+  assignWorkers,
+  getAssignedWorkers
+} = require('../controllers/projectsController');
+const { protect, admin } = require('../middleware/auth');
+const { validateProject } = require('../middleware/validation');
 
-const router = express.Router();
+router.route('/')
+  .get(protect, getAllProjects)
+  .post(protect, admin, validateProject, createProject);
 
-router.use(protect);
+router.route('/:id')
+  .get(protect, getProjectById)
+  .put(protect, admin, validateProject, updateProject)
+  .delete(protect, admin, deleteProject);
 
-router
-  .route('/')
-  .get(getProjects)
-  .post(authorize('admin'), createProject);
+router.route('/:id/finance-summary')
+  .get(protect, getFinanceSummary);
 
-router
-  .route('/:id')
-  .get(getProject)
-  .put(authorize('admin'), updateProject)
-  .delete(authorize('admin'), deleteProject);
+router.route('/:id/process-payment')
+  .post(protect, admin, processPayment);
 
-router.get('/:id/finance-summary', getFinanceSummary);
-router.post('/:id/process-payment', authorize('admin'), processPayment);
-router.post('/:id/assign-workers', authorize('admin'), assignWorkers);
+router.route('/:id/assign-workers')
+  .post(protect, admin, assignWorkers);
 
-export default router;
+router.route('/:id/assigned-workers')
+  .get(protect, getAssignedWorkers);
+
+module.exports = router;

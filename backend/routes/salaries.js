@@ -1,26 +1,30 @@
-import express from 'express';
-import {
-  getSalaries,
-  getSalary,
+const express = require('express');
+const router = express.Router();
+const {
+  getAllSalaries,
+  getSalaryById,
   createSalary,
   updateSalary,
-  deleteSalary
-} from '../controllers/salaries.js';
-import { protect, authorize } from '../middleware/auth.js';
+  deleteSalary,
+  getSalariesByWorkerId,
+  getSalariesByProjectId
+} = require('../controllers/salariesController');
+const { protect, admin } = require('../middleware/auth');
+const { validateSalary } = require('../middleware/validation');
 
-const router = express.Router();
+router.route('/')
+  .get(protect, getAllSalaries)
+  .post(protect, admin, validateSalary, createSalary);
 
-router.use(protect);
+router.route('/:id')
+  .get(protect, getSalaryById)
+  .put(protect, admin, validateSalary, updateSalary)
+  .delete(protect, admin, deleteSalary);
 
-router
-  .route('/')
-  .get(getSalaries)
-  .post(authorize('admin'), createSalary);
+router.route('/worker/:workerId')
+  .get(protect, getSalariesByWorkerId);
 
-router
-  .route('/:id')
-  .get(getSalary)
-  .put(authorize('admin'), updateSalary)
-  .delete(authorize('admin'), deleteSalary);
+router.route('/project/:projectId')
+  .get(protect, getSalariesByProjectId);
 
-export default router;
+module.exports = router;

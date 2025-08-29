@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const projectSchema = new mongoose.Schema({
   name: {
@@ -6,69 +6,44 @@ const projectSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  clientName: {
+  description: {
     type: String,
-    required: true
-  },
-  clientContact: {
-    type: String,
-    required: true
+    trim: true
   },
   totalAmount: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
-  paidAmount: {
-    type: Number,
-    default: 0
-  },
-  pendingAmount: {
-    type: Number,
-    default: function() {
-      return this.totalAmount - this.paidAmount;
-    }
-  },
-  startDate: {
-    type: Date,
-    required: true
-  },
-  endDate: {
-    type: Date
-  },
-  status: {
-    type: String,
-    enum: ['planning', 'in-progress', 'completed', 'on-hold'],
-    default: 'planning'
-  },
-  location: {
-    type: String,
-    required: true
-  },
-  description: {
-    type: String
-  },
-  owner: {
+  ownerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ProjectOwner',
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'completed', 'on-hold'],
+    default: 'active'
   },
   assignedWorkers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Worker'
   }],
-  payments: [{
-    amount: Number,
-    date: Date,
-    method: String,
-    reference: String
-  }]
+  currentBalance: {
+    type: Number,
+    default: function() {
+      return this.totalAmount;
+    },
+    min: 0
+  }
 }, {
   timestamps: true
 });
 
-projectSchema.pre('save', function(next) {
-  this.pendingAmount = this.totalAmount - this.paidAmount;
-  next();
-});
+// Update current balance when materials are added
+projectSchema.methods.updateBalance = function(amount) {
+  this.currentBalance -= amount;
+  return this.save();
+};
 
-export default mongoose.model('Project', projectSchema);
+module.exports = mongoose.model('Project', projectSchema);

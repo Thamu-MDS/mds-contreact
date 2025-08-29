@@ -1,26 +1,22 @@
-import express from 'express';
-import {
-  getMaterials,
-  getMaterial,
+const express = require('express');
+const router = express.Router();
+const {
+  getAllMaterials,
+  getMaterialById,
   createMaterial,
   updateMaterial,
   deleteMaterial
-} from '../controllers/materials.js';
-import { protect, authorize } from '../middleware/auth.js';
+} = require('../controllers/materialsController');
+const { protect, admin } = require('../middleware/auth');
+const { validateMaterial } = require('../middleware/validation');
 
-const router = express.Router();
+router.route('/')
+  .get(protect, getAllMaterials)
+  .post(protect, admin, validateMaterial, createMaterial);
 
-router.use(protect);
+router.route('/:id')
+  .get(protect, getMaterialById)
+  .put(protect, admin, validateMaterial, updateMaterial)
+  .delete(protect, admin, deleteMaterial);
 
-router
-  .route('/')
-  .get(getMaterials)
-  .post(authorize('admin'), createMaterial);
-
-router
-  .route('/:id')
-  .get(getMaterial)
-  .put(authorize('admin'), updateMaterial)
-  .delete(authorize('admin'), deleteMaterial);
-
-export default router;
+module.exports = router;

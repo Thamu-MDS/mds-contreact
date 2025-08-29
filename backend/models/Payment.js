@@ -1,33 +1,47 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
-  projectOwner: {
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project'
+  },
+  projectOwnerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ProjectOwner',
     required: true
   },
-  projectOwnerName: {
-    type: String,
-    required: true
-  },
   amount: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   date: {
     type: Date,
     default: Date.now
   },
-  description: {
-    type: String
-  },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'bank transfer', 'cheque', 'credit card', 'debit card', 'upi', 'other'],
-    required: true
+    enum: ['cash', 'bank', 'cheque', 'upi'],
+    default: 'cash'
+  },
+  reference: {
+    type: String,
+    trim: true
+  },
+  notes: {
+    type: String,
+    trim: true
+  },
+  isAdvance: {
+    type: Boolean,
+    default: false
+  },
+  description: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
 });
 
-export default mongoose.model('Payment', paymentSchema);
+module.exports = mongoose.model('Payment', paymentSchema);

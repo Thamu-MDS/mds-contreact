@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const projectOwnerSchema = new mongoose.Schema({
   name: {
@@ -9,29 +9,23 @@ const projectOwnerSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true, // Added unique constraint
-    trim: true,
-    lowercase: true
+    trim: true
   },
   phone: {
     type: String,
     required: true,
-    unique: true, // Added unique constraint
-    trim: true
+    unique: true
   },
   address: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   company: {
     type: String,
-    trim: true,
-    default: ''
+    trim: true
   },
   projectName: {
     type: String,
-    required: true, // Made projectName required
     trim: true
   },
   totalProjectValue: {
@@ -43,9 +37,4 @@ const projectOwnerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Add index for better query performance
-projectOwnerSchema.index({ email: 1 });
-projectOwnerSchema.index({ phone: 1 });
-projectOwnerSchema.index({ company: 1 });
-
-export default mongoose.model('ProjectOwner', projectOwnerSchema);
+module.exports = mongoose.model('ProjectOwner', projectOwnerSchema);

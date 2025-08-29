@@ -1,17 +1,27 @@
-import express from 'express';
-import {
-  getDashboard,
-  getFinancialReport,
-  getWorkerPerformanceReport
-} from '../controllers/reports.js';
-import { protect } from '../middleware/auth.js';
-
+const express = require('express');
 const router = express.Router();
+const {
+  getDashboardStats,
+  getFinancialReport,
+  getWorkerPerformanceReport,
+  getSalaryReport,
+  getAttendanceReport
+} = require('../controllers/reportsController');
+const { protect, admin } = require('../middleware/auth');
 
-router.use(protect);
+router.route('/dashboard')
+  .get(protect, getDashboardStats);
 
-router.get('/dashboard', getDashboard);
-router.get('/financial', getFinancialReport);
-router.get('/worker-performance', getWorkerPerformanceReport);
+router.route('/financial')
+  .get(protect, getFinancialReport);
 
-export default router;
+router.route('/worker-performance')
+  .get(protect, getWorkerPerformanceReport);
+
+router.route('/salary')
+  .get(protect, getSalaryReport);
+
+router.route('/attendance')
+  .get(protect, getAttendanceReport);
+
+module.exports = router;

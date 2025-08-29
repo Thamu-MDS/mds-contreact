@@ -1,29 +1,26 @@
-import express from 'express';
-import {
+const express = require('express');
+const router = express.Router();
+const {
   getAllPayments,
-  getPayments,
+  getPaymentById,
   createPayment,
   updatePayment,
   deletePayment,
-  getPaymentById
-} from '../controllers/payments.js';
-import { protect, authorize } from '../middleware/auth.js';
+  getPaymentsByOwnerId
+} = require('../controllers/paymentsController');
+const { protect, admin } = require('../middleware/auth');
+const { validatePayment } = require('../middleware/validation');
 
-const router = express.Router();
+router.route('/')
+  .get(protect, getAllPayments)
+  .post(protect, admin, validatePayment, createPayment);
 
-router.use(protect);
+router.route('/:id')
+  .get(protect, getPaymentById)
+  .put(protect, admin, validatePayment, updatePayment)
+  .delete(protect, admin, deletePayment);
 
-router
-  .route('/')
-  .get(getPayments) // Supports query parameter ?projectOwner=ownerId
-  .post(authorize('admin'), createPayment);
+router.route('/owner/:ownerId')
+  .get(protect, getPaymentsByOwnerId);
 
-router.get('/all', authorize('admin'), getAllPayments);
-
-router
-  .route('/:id')
-  .get(getPaymentById)
-  .put(authorize('admin'), updatePayment)
-  .delete(authorize('admin'), deletePayment);
-
-export default router;
+module.exports = router;

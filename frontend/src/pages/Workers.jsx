@@ -12,6 +12,7 @@ const Workers = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [editingWorker, setEditingWorker] = useState(null);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -30,10 +31,13 @@ const Workers = () => {
 
   const fetchWorkers = async () => {
     try {
+      setLoading(true);
       const response = await workersAPI.getAll();
       setWorkers(response.data);
+      setError('');
     } catch (error) {
       console.error('Error fetching workers:', error);
+      setError('Failed to load workers. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -41,17 +45,29 @@ const Workers = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    
     try {
+      console.log('Submitting worker data:', formData);
+      
       if (editingWorker) {
-        await workersAPI.update(editingWorker._id, formData);
+        const response = await workersAPI.update(editingWorker._id, formData);
+        console.log('Update response:', response);
       } else {
-        await workersAPI.create(formData);
+        const response = await workersAPI.create(formData);
+        console.log('Create response:', response);
       }
+      
       fetchWorkers();
       setShowModal(false);
       resetForm();
     } catch (error) {
       console.error('Error saving worker:', error);
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Failed to save worker';
+      setError(errorMessage);
     }
   };
 
@@ -67,6 +83,7 @@ const Workers = () => {
       monthlySalary: worker.monthlySalary || ''
     });
     setShowModal(true);
+    setError('');
   };
 
   const handleDelete = async (worker) => {
@@ -76,6 +93,7 @@ const Workers = () => {
         fetchWorkers();
       } catch (error) {
         console.error('Error deleting worker:', error);
+        setError('Failed to delete worker. Please try again.');
       }
     }
   };
@@ -91,7 +109,7 @@ const Workers = () => {
       await salariesAPI.create({
         workerId: selectedWorker._id,
         amount: paymentData.amount,
-        paymentDate: paymentData.date,
+        date: paymentData.date,
         paymentMethod: paymentData.paymentMethod,
         notes: paymentData.notes,
         periodStart: paymentData.periodStart,
@@ -108,6 +126,7 @@ const Workers = () => {
       fetchWorkers(); // Refresh the worker list
     } catch (error) {
       console.error('Error processing payment:', error);
+      setError('Failed to process payment. Please try again.');
     }
   };
 
@@ -122,6 +141,7 @@ const Workers = () => {
       monthlySalary: ''
     });
     setEditingWorker(null);
+    setError('');
   };
 
   const columns = [
@@ -159,13 +179,29 @@ const Workers = () => {
       title: 'Actions',
       render: (value, row) => (
         <div className="flex space-x-2">
-          {isAdmin && row.pendingSalary > 0 && (
-            <button
-              onClick={() => handlePayment(row)}
-              className="btn-success text-xs"
-            >
-              Pay
-            </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => handleEdit(row)}
+                className="text-indigo-600 hover:text-indigo-900 text-sm"
+              >
+                Edit
+              </button>
+              {row.pendingSalary > 0 && (
+                <button
+                  onClick={() => handlePayment(row)}
+                  className="text-green-600 hover:text-green-900 text-sm"
+                >
+                  Pay
+                </button>
+              )}
+              <button
+                onClick={() => handleDelete(row)}
+                className="text-red-600 hover:text-red-900 text-sm"
+              >
+                Delete
+              </button>
+            </>
           )}
         </div>
       )
@@ -194,13 +230,23 @@ const Workers = () => {
         )}
       </div>
 
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+          <button
+            onClick={() => setError('')}
+            className="float-right font-bold"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="card">
         <Table
           columns={columns}
           data={workers}
-          onEdit={isAdmin ? handleEdit : null}
-          onDelete={isAdmin ? handleDelete : null}
-          showActions={isAdmin}
+          showActions={true}
         />
       </div>
 
@@ -214,7 +260,7 @@ const Workers = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
             <input
               type="text"
               required
@@ -225,7 +271,7 @@ const Workers = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
             <input
               type="tel"
               required
@@ -246,7 +292,7 @@ const Workers = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
             <input
               type="text"
               required
@@ -258,7 +304,7 @@ const Workers = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
             <textarea
               required
               className="input-field"
@@ -269,7 +315,7 @@ const Workers = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Daily Salary (₹)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Daily Salary (₹) *</label>
             <input
               type="number"
               required

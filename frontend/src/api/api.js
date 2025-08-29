@@ -46,16 +46,16 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
 };
 
-// Workers API
+// Workers API - UPDATED to match backend routes
 export const workersAPI = {
   getAll: () => api.get('/workers'),
   getById: (id) => api.get(`/workers/${id}`),
   create: (data) => {
-    const formattedData = formatNumberFields(data, ['dailySalary', 'monthlySalary', 'pendingSalary']);
+    const formattedData = formatNumberFields(data, ['dailySalary', 'monthlySalary']);
     return api.post('/workers', formattedData);
   },
   update: (id, data) => {
-    const formattedData = formatNumberFields(data, ['dailySalary', 'monthlySalary', 'pendingSalary']);
+    const formattedData = formatNumberFields(data, ['dailySalary', 'monthlySalary']);
     return api.put(`/workers/${id}`, formattedData);
   },
   delete: (id) => api.delete(`/workers/${id}`),
@@ -63,7 +63,7 @@ export const workersAPI = {
   getSalaryHistory: (id) => api.get(`/workers/${id}/salaries`),
 };
 
-// Projects API
+// Projects API - UPDATED to match backend routes
 export const projectsAPI = {
   getAll: () => api.get('/projects'),
   getById: (id) => api.get(`/projects/${id}`),
@@ -82,7 +82,7 @@ export const projectsAPI = {
   getAssignedWorkers: (id) => api.get(`/projects/${id}/assigned-workers`),
 };
 
-// Project Owners API
+// Project Owners API - UPDATED to match backend routes
 export const projectOwnersAPI = {
   getAll: () => api.get('/project-owners'),
   getById: (id) => api.get(`/project-owners/${id}`),
@@ -95,10 +95,10 @@ export const projectOwnersAPI = {
     return api.put(`/project-owners/${id}`, formattedData);
   },
   delete: (id) => api.delete(`/project-owners/${id}`),
-  getProjectsSummary: (id, sort) => api.get(`/project-owners/${id}/projects-summary?sort=${sort}`),
+  getProjectsSummary: (id) => api.get(`/project-owners/${id}/projects-summary`),
 };
 
-// Materials API
+// Materials API - UPDATED to match backend routes
 export const materialsAPI = {
   getAll: (projectId) => api.get(`/materials${projectId ? `?projectId=${projectId}` : ''}`),
   getById: (id) => api.get(`/materials/${id}`),
@@ -113,7 +113,7 @@ export const materialsAPI = {
   delete: (id) => api.delete(`/materials/${id}`),
 };
 
-// Salaries API
+// Salaries API - UPDATED to match backend routes
 export const salariesAPI = {
   getAll: (params) => api.get('/salaries', { params }),
   getById: (id) => api.get(`/salaries/${id}`),
@@ -130,7 +130,7 @@ export const salariesAPI = {
   getProjectSalaries: (projectId) => api.get(`/salaries/project/${projectId}`),
 };
 
-// Attendance API
+// Attendance API - UPDATED to match backend routes
 export const attendanceAPI = {
   getAll: (params) => api.get('/attendance', { params }),
   getById: (id) => api.get(`/attendance/${id}`),
@@ -148,11 +148,10 @@ export const attendanceAPI = {
   getProjectAttendance: (projectId, params) => api.get(`/attendance/project/${projectId}`, { params }),
 };
 
-// Payments API
+// Payments API - UPDATED to match backend routes
 export const paymentsAPI = {
   getAll: (projectId) => api.get(`/payments${projectId ? `?projectId=${projectId}` : ''}`),
-  getByOwner: (ownerId) => api.get(`/payments?projectOwner=${ownerId}`),
-  getByOwnerId: (ownerId) => api.get(`/payments/owner/${ownerId}`),
+  getByOwner: (ownerId) => api.get(`/payments/owner/${ownerId}`),
   create: (data) => {
     const formattedData = formatNumberFields(data, ['amount']);
     return api.post('/payments', formattedData);
@@ -164,7 +163,7 @@ export const paymentsAPI = {
   delete: (id) => api.delete(`/payments/${id}`),
 };
 
-// Reports API
+// Reports API - UPDATED to match backend routes
 export const reportsAPI = {
   getDashboard: () => api.get('/reports/dashboard'),
   getFinancial: (params) => api.get('/reports/financial', { params }),
@@ -173,7 +172,7 @@ export const reportsAPI = {
   getAttendanceReport: (params) => api.get('/reports/attendance', { params }),
 };
 
-// Dashboard API
+// Dashboard API - UPDATED to match backend routes
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
   getRecentActivities: () => api.get('/dashboard/recent-activities'),

@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const workerSchema = new mongoose.Schema({
   name: {
@@ -8,7 +8,8 @@ const workerSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: true
+    required: true,
+    unique: true
   },
   email: {
     type: String,
@@ -24,30 +25,20 @@ const workerSchema = new mongoose.Schema({
   },
   dailySalary: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   monthlySalary: {
     type: Number,
-    default: 0
+    min: 0
   },
   pendingSalary: {
     type: Number,
-    default: 0
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['paid', 'pending', 'partial'],
-    default: 'pending'
-  },
-  lastPaymentDate: {
-    type: Date
-  },
-  isActive: {
-    type: Boolean,
-    default: true
+    default: 0,
+    min: 0
   }
 }, {
   timestamps: true
 });
 
-export default mongoose.model('Worker', workerSchema);
+module.exports = mongoose.model('Worker', workerSchema);

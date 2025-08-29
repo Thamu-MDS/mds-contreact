@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const salarySchema = new mongoose.Schema({
   workerId: {
@@ -8,14 +8,14 @@ const salarySchema = new mongoose.Schema({
   },
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
-    required: true
+    ref: 'Project'
   },
   amount: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
-  paymentDate: {
+  date: {
     type: Date,
     default: Date.now
   },
@@ -24,19 +24,18 @@ const salarySchema = new mongoose.Schema({
     enum: ['cash', 'bank', 'cheque', 'upi'],
     default: 'cash'
   },
-  notes: {
-    type: String
-  },
   periodStart: {
-    type: Date,
-    required: true
+    type: Date
   },
   periodEnd: {
-    type: Date,
-    required: true
+    type: Date
+  },
+  notes: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
 });
 
-export default mongoose.model('Salary', salarySchema);
+module.exports = mongoose.model('Salary', salarySchema);
